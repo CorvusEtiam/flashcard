@@ -1,0 +1,10 @@
+README.md
+setup.py
+src/Flashcards.egg-info/PKG-INFO
+src/Flashcards.egg-info/SOURCES.txt
+src/Flashcards.egg-info/dependency_links.txt
+src/Flashcards.egg-info/top_level.txt
+src/flashcard/__init__.py
+src/flashcard/cards.py
+src/flashcard/database.py
+src/flashcard/flashcard.py
