@@ -1,0 +1,27 @@
+{
+    "name"  : "Sample deck",
+    "author"    : "me",
+    "cards" : [
+        { 
+            "id" : 0,
+            "question" : "Apple",
+            "answer"   : "Jabłko",
+            "level"    : 0,
+            "category" : ["food"]
+        },
+        { 
+            "id" : 1,
+            "question" : "Orange",
+            "answer"   : "Pomarańcza",
+            "level"    : 0,
+            "category" : ["food"]
+        },
+        { 
+            "id" : 2,
+            "question" : "Malignant",
+            "answer"   : "Złośliwy",
+            "level"    : 1,
+            "category" : ["adjectives"]
+        }
+    ]
+}
