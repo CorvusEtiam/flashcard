@@ -8,7 +8,7 @@ import os
 import sqlite3
 from typing import List
 
-from flashcard.cards import Deck, Guess
+from flashcards.cards import Deck, Guess
 
 
 class Db:
