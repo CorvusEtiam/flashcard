@@ -13,4 +13,21 @@
 
 
 
-Failure
+# Views and UI States
+
+* Need way to show on which try they are
+* Need way to show on which card they are
+* Display current deck info
+
+
+1. Guess mode
+    - flash card
+    - entry box
+    - single button
+2. Check guess 
+    If guess was correct:
+        Turn screen green
+        Display answer
+        One button with: `Next` | `Result` message
+    Else:
+        Make screen red

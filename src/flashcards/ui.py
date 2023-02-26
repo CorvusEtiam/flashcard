@@ -5,6 +5,7 @@ GUI entry point
 import copy
 import enum
 import logging
+import os
 import random
 
 import tkinter as tk
@@ -20,206 +21,224 @@ from flashcards.ui_custom_dialogs import deck_list_dialog
 
 MAX_TRIES = 5
 MAX_CARDS = 5
-DEFAULT_SAVE_FILE_NAME="test.db"
+DEFAULT_SAVE_FILE_NAME = "test.db"
+
 
 class NotLoadedError(Exception):
-    '''Deck not loaded yet'''
+    """Deck not loaded yet"""
+
 
 class DeckNotSelected(Exception):
-    '''No deck selected'''
+    """No deck selected"""
+
 
 class UiCardState(enum.Enum):
     "Represent state of card label"
     QUESTION = 1
-    CORRECT_ANSWER   = 2
+    CORRECT_ANSWER = 2
     FAILED_ANSWER = 3
 
-class App(tk.Frame):
-    "Main window"
+
+class StatusBar(tk.Frame):
+    """Statusbar widget"""
+
     def __init__(self, master):
         super().__init__(master)
-        self.pack(fill="both", expand=1)
-        self.columnconfigure(0, weight=3)
-        self.columnconfigure(1, weight=1)
+        self.pack(fill="x", side="bottom")
+        self._deck_name_text = tk.StringVar()
+        self._deck_name_lbl = tk.Label(self, textvariable=self._deck_name_text)
+        self._deck_name_lbl.pack(side="left")
+
+        self._card_info_text = tk.StringVar()
+        self._card_info_lbl = tk.Label(self, textvariable=self._card_info_text)
+        self._card_info_lbl.pack(side="bottom")
+
+        self._try_number_text = tk.StringVar()
+        self._try_number_lbl = tk.Label(self, textvariable=self._try_number_text)
+        self._try_number_lbl.pack(side="right")
+
+    def update_deck_info(self, deck: "Deck"):
+        """Update statusbar deck info"""
+        self._deck_name_text.set(deck.deck_name)
+
+    def update_card_info(self, current_card_index: int = 1, max_cards: int = MAX_CARDS):
+        """Update statusbar card info"""
+        self._card_info_text.set(f"{current_card_index} out of {max_cards}")
+
+    def update_try_info(self, current_try: int = 1, max_tries: int = MAX_TRIES):
+        """Update statusbar try count"""
+        self._try_number_text.set(f"{current_try}/{max_tries}")
+
+class GuessView(tk.Frame):
+    """Main guessing mode view"""
+
+    def __init__(self, master, on_answer):
+        super().__init__(master)
+        self.on_answer_cb = on_answer
+        self.pack(side='top', fill='both', expand=1)
         self.rowconfigure(0, weight=5)
         self.rowconfigure(1, weight=1)
-        self.data_store = Db(DEFAULT_SAVE_FILE_NAME)
-        self.data_store.setup_database()
-        self._cards = []
-        self._current_deck = None
-        self._guesses: List['Guess'] = []
-        self._card_lbl_state = UiCardState.QUESTION    
-        self._setup_menu(master)
-        self._setup_widgets()
-
-    @property
-    def current_guess(self) -> 'Guess':
-        '''Return current guess. Raise error if deck is not loaded yet'''
-        if self._current_deck is None:
-            raise NotLoadedError("Deck is not loaded yet")
-        return self._guesses[-1]
-
-    @property
-    def current_card(self):
-        '''Returns current active card'''
-        return self._guesses[-1].card
-    
-    def _setup_menu(self, master_wnd):
-        self._menubar = tk.Menu(master_wnd)
-        file_menu = tk.Menu(self._menubar, tearoff=0)
-        file_menu.add_command(label="Load Saved Decks", command=self._load_saved_decks_cmd)
-        file_menu.add_command(label="Select Deck", command=self.select_deck)
-        file_menu.add_command(
-            label="Import New Deck", command=self._import_new_deck_cmd
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=3)
+        self.columnconfigure(2, weight=1)
+        self.card_label_txt = tk.StringVar()
+        self.card_label = tk.Label(self,
+            textvariable=self.card_label_txt,
+            font=("Arial 30"),
+            justify="center"
         )
-        file_menu.add_command(label="Edit Deck", command=self._edit_deck_cmd)
-        self._menubar.add_cascade(label="File", menu=file_menu)
-        master_wnd.config(menu=self._menubar)
+        self.card_label.grid(row=0, column=0, columnspan=3, sticky="nsew")
+        self.entry_box_val = tk.StringVar()
+        self.entry_box = tk.Entry(self, font=("Arial 16"), textvariable=self.entry_box_val)
+        self.entry_box.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self.check_btn = tk.Button(self,
+            text="Check Answer",
+            command=lambda: self.check_answer() , width=6, height=6)
+        self.check_btn.grid(row=1, column=2, sticky="nsew")
+    @property
+    def current_card(self) -> 'Card':
+        '''Return card from parent main widget'''
+        return self.master.current_card
 
-    def _setup_widgets(self):
-        self._card_text = tk.StringVar()
-        self._card_text.set("")
-        self._card_lbl = tk.Label(self, textvariable=self._card_text, font=("Arial 24"), bg="cyan")
-        self._card_lbl.grid(row=0, column=0, columnspan=2, ipadx=2, ipady=2, sticky="nsew")
-        self._card_lbl.bind("<Button-1>", lambda _ev: self._on_click_label)
-        self._entry_var = tk.StringVar(self)
-        self._entry_box = ttk.Entry(
-            self, font=("Arial 24"), textvariable=self._entry_var
-        )
-        self._entry_box.grid(row=1, column=0, sticky="nsew")
-        self._btn = tk.Button(self, text="Check", width=12, command=self._check_answer)
-        self._btn.grid(row=1, column=1, sticky="nsew")
-        self._message_text_var = tk.StringVar()
-        self._message_lbl = tk.Label(self, textvariable=self._message_text_var, font=("Arial 24"))
-        self._btn.configure(text="Next card", command=self._next_card)
-        self._message_lbl.bind("<Button-1>", self._next_card)
+    def check_answer(self):
+        print("**** ", self.entry_box_val.get())
+        self.on_answer_cb(self.entry_box_val.get())
 
-    def _on_click_label(self):
-        if self._card_lbl_state == UiCardState.CORRECT_ANSWER:
-            self.play_top_card()
-        elif self._card_lbl_state == UiCardState.FAILED_ANSWER:
-            self._card_lbl_state = UiCardState.QUESTION
-            self._card_lbl.configure(bg='cyan')
-            self._entry_var.set("")
-        
-    
-    def _next_card(self, _ev):
-        self._message_lbl.grid_forget()
-        self._card_lbl.grid(row=0, column=0, columnspan=2, ipadx=2, ipady=2, sticky="nsew")
-        self._btn.configure(command=self._check_answer, text="Check")
-        self.play_top_card()
+    def update_card(self):
+        self.card_label.configure(bg='cyan')
+        self.card_label_txt.set(self.current_card.question)
 
-    def load_deck(self, deck: 'Deck'):
-        """Setup new flashcard deck and pick a set of cards"""
-        print("Loading new deck")
-        self._current_deck = deck
-        self._cards = copy.deepcopy(deck.cards)
-        random.shuffle(self._cards)
-        self._cards = self._cards[:MAX_CARDS]
+class App(tk.Tk):
+    "Main UI App entry point"
+    def __init__(self):
+        super().__init__()
+        self.geometry("480x300")
+        self.status_bar = StatusBar(self)
+        self.guess_view = GuessView(self, on_answer=self.on_answer_handler)
+        self.menu_bar = tk.Menu(self)
+        file_menu = tk.Menu(self.menu_bar, tearoff=0)
+        #file_menu.add_command(label="Load", command=self._load_saved_decks_cmd)
+        #file_menu.add_command(label="Select Deck", command=self.select_deck)
+        #file_menu.add_command(
+        #    label="Import New Deck", command=self.import_new_deck_dialog
+        #)
+        # file_menu.add_command(label="Edit Deck", command=self._edit_deck_cmd)
+        self.menu_bar.add_cascade(label="File", menu=file_menu)
+        self.config(menu=self.menu_bar)
+        # check if there is saved db in standard location if not ask user for one
 
-    def select_deck(self):
-        '''Select and setup new deck'''
-        all_decks = self.data_store.get_all_decks()
-        if not all_decks:
-            self._import_new_deck_cmd()
-            return
-        if len(all_decks) == 1:
-            self.load_deck(all_decks[0])
+        self.data_store = None
+        self.deck = None
+        self.current_try = 1
+        self.guesses = []
+        self.answers = []
+        self.card_count = 0
+        self.current_card = None
+
+        if os.path.exists(DEFAULT_SAVE_FILE_NAME):
+            self.data_store = Db(DEFAULT_SAVE_FILE_NAME)
         else:
-            try:
-                selected_deck = deck_list_dialog(all_decks)
-                self.load_deck(selected_deck)
-            except DeckNotSelected:
-                showerror("Deck Selection", "No deck selected")
-        self.play_top_card()
-        
-    def play_top_card(self):
-        '''Set new card ui'''
-        card = self._cards.pop()
-        print("Top card is: ", card)
-        self._guesses.append(Guess(card=card, tries=[], status=None))
-        self._card_lbl.configure(bg='cyan')
-        self._card_text.set(self.current_card.question)
-        self._entry_var.set("")
+            self.load_user_data_store_dialog()
 
-    def _load_saved_decks_cmd(self):
-        '''Menu command resposible for loading saved decks'''
+        # views should only be responsible for displaying stuff and handling user-input
+        # all logic should go into main app
+        # select deck
+        decks = self.data_store.get_all_decks()
+        if not decks:
+            self.import_new_deck_dialog()
+            decks = self.data_store.get_all_decks()
+        if len(decks) == 1:
+            self.prepare_deck(decks[0])
+        else:
+            selected_deck = deck_list_dialog(decks)
+            self.prepare_deck(selected_deck)
+
+    def import_new_deck_dialog(self):
+        """Load new deck"""
+        json_file = askopenfilename(
+            initialdir=".",
+            title="Pick deck JSON file",
+            filetypes=(
+                (
+                    "JSON file",
+                    "*.json*",
+                ),
+            ),
+        )
+        try:
+            self.data_store.load_flash_cards(json_file)
+        except Exception as ex:  # pylint: disable=broad-except
+            # anything wrong happen - log it
+            logging.error(str(ex))
+            print(f"[ERROR] {ex!r}")
+            showerror("Error occured while import new deck")
+
+    def prepare_deck(self, deck: "Deck"):
+        """Prepare deck for play"""
+        self.deck = deck
+        cards = copy.deepcopy(self.deck.cards)
+        random.shuffle(cards)
+        self.cards = cards[:MAX_CARDS]
+        self.current_try = 1
+        self.guesses = []
+        self.answers = []
+        self.card_count = len(self.cards)
+        self.current_card = self.cards.pop()
+        print(f"Current card is: {self.current_card}")
+
+        self.status_bar.update_deck_info(self.deck)
+        self.status_bar.update_card_info(1, len(self.cards))
+        self.status_bar.update_try_info(1, MAX_TRIES)
+        self.guess_view.update_card()
+
+    def load_user_data_store_dialog(self):
+        """Command resposible for loading saved decks"""
         db_file = askopenfilename(
-            initialdir="/", 
-            title="Pick db file",
-            filetypes=(("DB file", "*.db*",),)
+            initialdir=".",
+            title="Pick data file",
+            filetypes=(
+                (
+                    "DB file",
+                    "*.db*",
+                ),
+            ),
         )
-        self.data_store = Db(db_path=db_file)
-        self.select_deck()
-        if not self._cards:
-            showerror(f"Deck {self._current_deck.deck_name!r} doesn't have any cards")
-            return    
-        self.play_top_card()
+        try:
+            self.data_store = Db(db_path=db_file)
+        except Exception as ex:  # pylint: disable=broad-except
+            # anything wrong happen - log it
+            logging.error(str(ex))
+            print(f"[ERROR] {ex!r}")
+            showerror("Error occured while loading datastore")
+
+    def pop_card(self):
+        """Set state with new card"""
+        self.current_card = self.cards.pop()
+        self.answers = []
+        self.current_try = 1
+        self.guess_view.update_card()
+        self.status_bar.update_card_info(len(self.guesses)+1)
     
-    def _import_new_deck_cmd(self):
-        json_file_path = askopenfilename(
-            initialdir='/',
-            title='Pick json file with flashcards',
-            filetypes=(("JSON file", "*.json*"),)
-        )
-        self.data_store.load_flash_cards(json_file_path)
-        self.select_deck()
-        if not self._cards:
-            showerror(f"Deck {self._current_deck.deck_name!r} doesn't have any cards")
-            return
-        self.play_top_card()
-
-    def show_final_screen(self):
-        t = tk.Toplevel()
-        correct = len(card for card in self._guesses if card.status == GuessStatus.CORRECT)
-        lbl_text = f"You correctly answered to {len(correct)} cards out of {len(self._guesses)}"
-        lbl_widget = tk.Label(t, text=lbl_text)
-        lbl_widget.bind("<Button-1>", self._new_game)
-    
-    def _new_game(self):
-        # save progress
-        # remove all guesses
-        # remove all cards
-        # get all cards from current deck
-        pass
-
-
-    def correct_card_msg(self):
-        pass
-    def failure_card_msg(self):
-        pass
-
-
-    def _check_answer(self):
-        given_answer = self._entry_var.get()
-        if given_answer.strip() == self.current_card.answer:
-            self._guesses[-1].status = GuessStatus.CORRECT
-            self._guesses[-1].tries.append(given_answer)
-            if len(self._guesses) >= MAX_CARDS:
-                self.show_final_screen()
-            else:
-                self._card_lbl.grid_forget()
-                self._correct_card_var.set("Correct: :\n"+self.current_card.answer+"\nPress to get next card")
-                self._correct_card_lbl.grid(row=0, column=0, columnspan=2, ipadx=2, ipady=2, sticky="nsew")
-                self._card_lbl_state = UiCardState.CORRECT_ANSWER
+    def on_answer_handler(self, raw_answer: str):
+        """Callback for new answer"""
+        self.answers.append(raw_answer)
+        if self.current_card.answer == raw_answer:
+            self.guesses.append(Guess(self.current_card, self.answers, GuessStatus.CORRECT))
+            if not self.cards:
+                # show_final_screen()
+                return
+            self.pop_card()
+            self.status_bar.update_try_info(self.current_try)
         else:
-            if len(self._guesses[-1].tries) < MAX_TRIES:
-                self._guesses[-1].tries.append(given_answer)
-                self._card_lbl.configure(bg='red')
-                self._card_lbl_state = UiCardState.FAILED_ANSWER
+            if self.current_try >= MAX_TRIES:
+                self.guesses.append(Guess(self.current_card, self.answers, GuessStatus.FAILED))
+                if not self._cards:
+                    # show_final_screen()
+                    return
+                self.pop_card()
             else:
-                self._guesses[-1].tries.append(given_answer)
-                self._card_lbl.grid_forget()
-                self._failure_card_var.set("Correct answer was:\n"+self.current_card.answer)
-                self._failure_card_lbl.grid(row=0, column=0, columnspan=2, ipadx=2, ipady=2, sticky="nsew")
-                
-
-    def _edit_deck_cmd(self):
-        window = DeckEditor(self._current_deck)
-        window.grab_set()
-
-
-
+                self.current_try += 1
+                self.status_bar.update_try_info(self.current_try)
 
 class DeckEditor(tk.Toplevel):
     """Deck editor class"""
@@ -247,7 +266,7 @@ class DeckEditor(tk.Toplevel):
         self._add_card_btn = tk.Button(self)
         self._rem_card_btn = tk.Button(self)
         self._update_card_btn = tk.Button(self)
-    
+
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -256,7 +275,6 @@ if __name__ == "__main__":
         filemode="w",
         format="[%(levelname)s] %(name)s -- %(message)s",
     )
-    root = tk.Tk()
-    root.geometry("480x300")
-    app = App(root)
-    app.mainloop()
+
+    root = App()
+    root.mainloop()

@@ -1,11 +1,13 @@
 """
 Custom TK dialogs
 """
+
+from typing import List
 import tkinter as tk
 
 from flashcards.cards import Card, Deck
 
-def deck_list_dialog(decks) -> 'Deck':
+def deck_list_dialog(decks: List['Deck']) -> 'Deck':
     """Dialogue returning one of the decks"""
     win = tk.Toplevel()
     win.title("Deck List")
