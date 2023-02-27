@@ -8,6 +8,7 @@ import random
 from flashcards.cards import GuessStatus, Guess
 from flashcards.database import Db
 
+
 def display_flash_card(card):
     """Print info about card"""
     print(f"{card['question']: ^80}")

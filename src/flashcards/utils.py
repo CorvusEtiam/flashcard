@@ -79,7 +79,7 @@ def iterative_levenshtein(left_string: str, right_string: str) -> int:
                 dist[row - 1][col - 1] + cost,
             )  # substitution
 
-#    for r in range(rows):
-#        print(dist[r])
+    #    for r in range(rows):
+    #        print(dist[r])
 
     return dist[row][col]

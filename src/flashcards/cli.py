@@ -15,6 +15,7 @@ import os
 from flashcards.flashcard import display_deck_info, play
 from flashcards.database import Db
 
+
 def main(arguments):
     """Main flashcard function"""
     database_handle = Db("result.db")
