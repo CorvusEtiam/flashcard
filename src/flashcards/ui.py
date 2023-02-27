@@ -13,11 +13,9 @@ from tkinter import ttk
 from tkinter.filedialog import askopenfilename
 from tkinter.messagebox import showerror
 
-from typing import List
-
 from flashcards.cards import Deck, Card, Guess, GuessStatus
 from flashcards.database import Db
-from flashcards.ui_custom_dialogs import deck_list_dialog
+from flashcards.ui_custom_dialogs import DeckListDialog
 
 MAX_TRIES = 5
 MAX_CARDS = 5
@@ -69,47 +67,76 @@ class StatusBar(tk.Frame):
         """Update statusbar try count"""
         self._try_number_text.set(f"{current_try}/{max_tries}")
 
+
 class GuessView(tk.Frame):
     """Main guessing mode view"""
 
     def __init__(self, master, on_answer):
         super().__init__(master)
         self.on_answer_cb = on_answer
-        self.pack(side='top', fill='both', expand=1)
+        self.pack(side="top", fill="both", expand=1)
         self.rowconfigure(0, weight=5)
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=3)
         self.columnconfigure(2, weight=1)
         self.card_label_txt = tk.StringVar()
-        self.card_label = tk.Label(self,
-            textvariable=self.card_label_txt,
-            font=("Arial 30"),
-            justify="center"
+        self.card_label = tk.Label(
+            self, textvariable=self.card_label_txt, font=("Arial 30"), justify="center"
         )
         self.card_label.grid(row=0, column=0, columnspan=3, sticky="nsew")
         self.entry_box_val = tk.StringVar()
-        self.entry_box = tk.Entry(self, font=("Arial 16"), textvariable=self.entry_box_val)
+        self.entry_box = tk.Entry(
+            self, font=("Arial 16"), textvariable=self.entry_box_val
+        )
         self.entry_box.grid(row=1, column=0, columnspan=2, sticky="nsew")
-        self.check_btn = tk.Button(self,
-            text="Check Answer",
-            command=lambda: self.check_answer() , width=6, height=6)
+        self.check_btn = tk.Button(
+            self, text="Check Answer", command=self.check_answer, width=6, height=6
+        )
         self.check_btn.grid(row=1, column=2, sticky="nsew")
+
     @property
-    def current_card(self) -> 'Card':
-        '''Return card from parent main widget'''
+    def current_card(self) -> "Card":
+        """Return card from parent main widget"""
         return self.master.current_card
 
+    def blink_error(self):
+        """Blink card label red on incorrect answer"""
+
+        def blink():
+            self.card_label.configure(background="red")
+            self.card_label.after(
+                100, lambda: self.card_label.configure(background="cyan")
+            )
+
+        self.card_label.after(5, blink)
+
+    def blink_correct(self):
+        """Blink card label green on correct answer"""
+
+        def blink():
+            self.card_label.configure(background="green")
+            self.card_label.after(
+                100, lambda: self.card_label.configure(background="cyan")
+            )
+
+        self.card_label.after(5, blink)
+
     def check_answer(self):
-        print("**** ", self.entry_box_val.get())
+        """Check answer command handler"""
         self.on_answer_cb(self.entry_box_val.get())
 
-    def update_card(self):
-        self.card_label.configure(bg='cyan')
-        self.card_label_txt.set(self.current_card.question)
+    def update_card(self, question: str):
+        """Set current card content
+        FIXME Maybe it should take updated card as an argument
+        """
+        self.card_label.configure(bg="cyan")
+        self.card_label_txt.set(question)
+
 
 class App(tk.Tk):
     "Main UI App entry point"
+
     def __init__(self):
         super().__init__()
         self.geometry("480x300")
@@ -117,11 +144,11 @@ class App(tk.Tk):
         self.guess_view = GuessView(self, on_answer=self.on_answer_handler)
         self.menu_bar = tk.Menu(self)
         file_menu = tk.Menu(self.menu_bar, tearoff=0)
-        #file_menu.add_command(label="Load", command=self._load_saved_decks_cmd)
-        #file_menu.add_command(label="Select Deck", command=self.select_deck)
-        #file_menu.add_command(
+        # file_menu.add_command(label="Load", command=self._load_saved_decks_cmd)
+        # file_menu.add_command(label="Select Deck", command=self.select_deck)
+        # file_menu.add_command(
         #    label="Import New Deck", command=self.import_new_deck_dialog
-        #)
+        # )
         # file_menu.add_command(label="Edit Deck", command=self._edit_deck_cmd)
         self.menu_bar.add_cascade(label="File", menu=file_menu)
         self.config(menu=self.menu_bar)
@@ -150,8 +177,8 @@ class App(tk.Tk):
         if len(decks) == 1:
             self.prepare_deck(decks[0])
         else:
-            selected_deck = deck_list_dialog(decks)
-            self.prepare_deck(selected_deck)
+            list_dialog = DeckListDialog(self, decks, self.prepare_deck)
+            list_dialog.mainloop()
 
     def import_new_deck_dialog(self):
         """Load new deck"""
@@ -189,7 +216,7 @@ class App(tk.Tk):
         self.status_bar.update_deck_info(self.deck)
         self.status_bar.update_card_info(1, len(self.cards))
         self.status_bar.update_try_info(1, MAX_TRIES)
-        self.guess_view.update_card()
+        self.guess_view.update_card(self.current_card.question)
 
     def load_user_data_store_dialog(self):
         """Command resposible for loading saved decks"""
@@ -216,29 +243,36 @@ class App(tk.Tk):
         self.current_card = self.cards.pop()
         self.answers = []
         self.current_try = 1
-        self.guess_view.update_card()
-        self.status_bar.update_card_info(len(self.guesses)+1)
-    
+        self.guess_view.update_card(self.current_card.question)
+        self.status_bar.update_card_info(len(self.guesses) + 1)
+
     def on_answer_handler(self, raw_answer: str):
         """Callback for new answer"""
         self.answers.append(raw_answer)
         if self.current_card.answer == raw_answer:
-            self.guesses.append(Guess(self.current_card, self.answers, GuessStatus.CORRECT))
+            self.guesses.append(
+                Guess(self.current_card, self.answers, GuessStatus.CORRECT)
+            )
             if not self.cards:
                 # show_final_screen()
                 return
+            self.guess_view.blink_correct()
             self.pop_card()
             self.status_bar.update_try_info(self.current_try)
         else:
             if self.current_try >= MAX_TRIES:
-                self.guesses.append(Guess(self.current_card, self.answers, GuessStatus.FAILED))
+                self.guesses.append(
+                    Guess(self.current_card, self.answers, GuessStatus.FAILED)
+                )
                 if not self._cards:
                     # show_final_screen()
                     return
                 self.pop_card()
             else:
                 self.current_try += 1
+                self.guess_view.blink_error()
                 self.status_bar.update_try_info(self.current_try)
+
 
 class DeckEditor(tk.Toplevel):
     """Deck editor class"""
