@@ -12,8 +12,9 @@ from argparse import ArgumentParser
 import logging
 import os
 
-from flashcard.flashcard import display_deck_info, play
-from flashcard.database import Db
+from flashcards.flashcard import display_deck_info, play
+from flashcards.database import Db
+
 
 def main(arguments):
     """Main flashcard function"""

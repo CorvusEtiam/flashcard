@@ -5,9 +5,9 @@ Flashcard game
 """
 import copy
 import random
+from flashcards.cards import GuessStatus, Guess
+from flashcards.database import Db
 
-from flashcard.cards import GuessStatus, Guess
-from flashcard.database import Db
 
 def display_flash_card(card):
     """Print info about card"""
