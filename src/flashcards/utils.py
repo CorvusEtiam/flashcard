@@ -1,8 +1,9 @@
 """Utility module"""
 
+import copy
 import enum
+import random
 import unicodedata
-
 
 def remove_accents(input_text: str) -> str:
     """Remove accents from unicode string"""
@@ -83,3 +84,11 @@ def iterative_levenshtein(left_string: str, right_string: str) -> int:
     #        print(dist[r])
 
     return dist[row][col]
+
+
+
+def clone_cards(cards, at_least):
+    """Clone at least n cards. array[:at_least]"""
+    card_copy = copy.deepcopy(cards)
+    random.shuffle(card_copy)
+    return card_copy[:at_least]

@@ -31,3 +31,22 @@
         One button with: `Next` | `Result` message
     Else:
         Make screen red
+
+```
+guess_view.set_current_card(card)
+
+check_answer: 
+If answer is correct:
+    self.show_answer()
+    self.set_card_color("green")
+    self.master.status_bar.update_status_bar()
+Else:
+    If try count < max_tries:
+        guess_view -> blink card red
+        increase try count
+        update_status_bar
+    Else:
+        show answer
+        turn card red
+        update_status_bar    
+```
