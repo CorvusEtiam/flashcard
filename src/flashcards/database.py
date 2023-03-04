@@ -33,17 +33,18 @@ class Db:
         cursor = self.conn.cursor()
         # check if tables exist
         cursor.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS decks 
-            (
-                deck_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                deck_name TEXT NOT NULL,
-                author TEXT NOT NULL
-            );"""
+        """
+        CREATE TABLE IF NOT EXISTS decks 
+        (
+            deck_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deck_name TEXT NOT NULL,
+            author TEXT NOT NULL
+        );
+        """
         )
         logging.info("Table decks created")
         cursor.executescript(
-            """
+        """
         CREATE TABLE IF not EXISTS cards(
             card_id INTEGER PRIMARY KEY AUTOINCREMENT,
             deck_id INTEGER NOT NULL,
@@ -59,17 +60,18 @@ class Db:
         )
         logging.info("Table cards created")
         cursor.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS progress(
+        """
+        CREATE TABLE IF NOT EXISTS progress(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             card_id INTEGER NOT NULL,
             guess_list TEXT NOT NULL,
             status INTEGER NOT NULL,
-
+            guess_ts TEXT NOT NULL,
+            
             FOREIGN KEY (card_id) 
                 REFERENCES cards (card_id)
             );
-            """
+        """
         )
         self.conn.commit()
 
@@ -135,20 +137,17 @@ class Db:
             result.append(self.get_deck_from_database(deck["deck_id"]))
         return result
 
-    def load_flash_cards(self, file_path: str):
-        """Load deck from json file"""
-        if os.path.exists(file_path):
-            deck = None
-            with open(file_path, "r", encoding="utf-8") as file_handle:
-                deck_dict = json.load(file_handle)
-                deck = Deck.from_dict(deck_dict)
-            self.put_deck_into_database(deck)
-
-    def save_progress(self, guesses: List["Guess"]):
+    def put_guesses_into_database(self, guesses: List[Guess]):
         """Save game progress"""
+        guesses_rows = [ (g.card.card_id, ";".join(g.tries), g.status.value) for g in guesses ]
         cursor = self.conn.cursor()
+        cursor.executemany(
+            """
+            INSERT INTO progress(card_id, guess_list, status)
+            VALUES (?, ?, ?)
+            """, guesses_rows
+        )
+        cursor.commit()
 
-        rows = [[row.card.card_id, ";".join(row.tries), row.status] for row in guesses]
-
-        cursor.executemany("INSERT INTO progress(?, ?, ?)", rows)
-        self.conn.commit()
+    def get_guesses_from_database(self):
+        pass

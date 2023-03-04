@@ -3,6 +3,7 @@
 GUI entry point
 """
 
+from datetime import datetime
 import enum
 import logging
 import os
@@ -15,12 +16,12 @@ from typing import List
 import flashcards.utils as utils
 from flashcards.cards import Deck, Guess, GuessStatus
 from flashcards.database import Db
+from flashcards.fileloaders import load_from_json_file, load_anki2_file, load_apkg_file
 from flashcards.ui_custom_dialogs import DeckListDialog
 
 MAX_TRIES = 5
 MAX_CARDS = 5
 DEFAULT_SAVE_FILE_NAME = "test.db"
-
 
 class NotLoadedError(Exception):
     """Deck not loaded yet"""
@@ -28,14 +29,6 @@ class NotLoadedError(Exception):
 
 class DeckNotSelected(Exception):
     """No deck selected"""
-
-
-class UiCardState(enum.Enum):
-    "Represent state of card label"
-    QUESTION = 1
-    CORRECT_ANSWER = 2
-    FAILED_ANSWER = 3
-
 
 class StatusBar(tk.Frame):
     """Statusbar widget"""
@@ -109,7 +102,7 @@ class GuessView(tk.Frame):
         """Load deck into guess view"""
         self.deck = deck
         self.cards = utils.clone_cards(deck.cards, MAX_CARDS)
-        if len(self.cards) == 0:
+        if not self.cards:
             showerror("Empty deck", "Empty deck: " + self.deck.deck_name)
             self.master.quit()
             return
@@ -121,6 +114,20 @@ class GuessView(tk.Frame):
         self.card_label.configure(background="cyan")
         self.card_label_txt.set(self.current_guess.card.question)
 
+    def push_guess_with_status(self, status: GuessStatus = GuessStatus.FAILED):
+        """Push guess from current_guess with assigned status"""
+        self.current_guess.status = status
+        self.current_guess.guess_ts = datetime.now()
+        self.guesses.append(self.current_guess)
+        self.current_guess = None
+
+    def show_final_view(self):
+        """Show results"""
+        self.master.show_final_view(self.guesses)
+
+    def update_check_button(self):
+        """Update check btn based on how many cards are left"""
+    
     def check_answer(self):
         """Check answer command handler"""
         card = self.current_guess.card
@@ -128,19 +135,15 @@ class GuessView(tk.Frame):
         self.entry_box_val.set("")
         self.current_guess.tries.append(answer)
         if card.answer == answer:
-            self.current_guess.status = GuessStatus.CORRECT
-            self.guesses.append(self.current_guess)
+            self.push_guess_with_status(GuessStatus.CORRECT)
             self.card_label_txt.set(card.answer)
             self.card_label.configure(background="green")
-            if len(self.cards) == 0:
-                self.check_btn.configure(
-                    command=lambda: self.master.show_final_view(self.guesses), text="Show results"
-                )
-            else:
+            if self.cards:
                 self.check_btn.configure(command=self.load_next_card, text="Next card")
+            else:
+                self.check_btn.configure(command=self.show_final_view, text="Show results")
         else:
             if len(self.current_guess.tries) < MAX_TRIES:
-                print(f"**** {self.current_guess.tries!r}")
                 self.master.status_bar.update_play_info(
                     tries=len(self.current_guess.tries) + 1
                 )
@@ -148,22 +151,17 @@ class GuessView(tk.Frame):
                 self.check_btn.configure(command=self.check_answer, text="Try again")
             else:
                 self.current_guess.tries.append(answer)
-                self.current_guess.status = GuessStatus.FAILED
-                self.guesses.append(self.current_guess)
+                self.push_guess_with_status(GuessStatus.FAILED)
                 self.card_label_txt.set(card.answer)
                 self.card_label.configure(background="red")
-                if len(self.cards) == 0:
-                    self.check_btn.configure(
-                        command=lambda: self.master.show_final_view(self.guesses),
-                        text="Show results"
-                    )
+                if self.cards:
+                    self.check_btn.configure(command=self.load_next_card, text="Next card")
                 else:
-                    self.check_btn.configure(
-                        command=self.load_next_card, text="Next card"
-                    )
-
+                    self.check_btn.configure(command=self.show_final_view, text="Show results")
+            
     def load_next_card(self):
         """Loading next card"""
+        assert len(self.cards) > 0, "Number of cards remaining is larger then 0"
         self.current_guess = Guess(self.cards.pop(), [], GuessStatus.FAILED)
         self.current_try = 1
         self.master.status_bar.update_play_info(card=len(self.guesses) + 1, tries=1)
@@ -216,11 +214,15 @@ class App(tk.Tk):
         self.final_view = FinalSummaryView(self)
         self.menu_bar = tk.Menu(self)
         file_menu = tk.Menu(self.menu_bar, tearoff=0)
-        # file_menu.add_command(label="Load", command=self._load_saved_decks_cmd)
-        # file_menu.add_command(label="Select Deck", command=self.select_deck)
-        # file_menu.add_command(
-        #    label="Import New Deck", command=self.import_new_deck_dialog
-        # )
+        file_menu.add_command(label="Load", command=self.load_user_data_store_dialog)
+        file_menu.add_command(label="Select Deck", command=self.select_deck_cmd)
+        file_menu.add_command(
+            label="Import New Deck (JSON)", command=self.import_new_deck_dialog
+        )
+        file_menu.add_command(
+            label="Import New Deck (ANKI)", command=self.import_new_anki_deck_dialog
+        )
+
         # file_menu.add_command(label="Edit Deck", command=self._edit_deck_cmd)
         self.menu_bar.add_cascade(label="File", menu=file_menu)
         self.config(menu=self.menu_bar)
@@ -237,6 +239,9 @@ class App(tk.Tk):
         # views should only be responsible for displaying stuff and handling user-input
         # all logic should go into main app
         # select deck
+        self.select_deck_cmd()    
+        
+    def select_deck_cmd(self):
         decks = self.data_store.get_all_decks()
         if not decks:
             self.import_new_deck_dialog()
@@ -271,6 +276,34 @@ class App(tk.Tk):
         else:
             view.pack_forget()
 
+
+    def import_new_anki_deck_dialog(self):
+        """Load new ANKI deck"""
+        anki_file = askopenfilename(
+            initialdir=".",
+            title="Pick deck in ANKI format",
+            filetypes=(
+                (
+                    "ANKI Apkg file",
+                    "*.apkg*",
+                ),
+                (
+                    "ANKI2 file",
+                    "*.anki2*"
+                ),
+            ),
+        )
+        try:
+            if anki_file.endswith("apkg"):
+                load_apkg_file(anki_file, self.data_store)
+            else:
+                load_anki2_file(anki_file, self.data_store)
+        except Exception as ex:  # pylint: disable=broad-except
+            # anything wrong happen - log it
+            logging.error(str(ex))
+            print(f"[ERROR] {ex!r}")
+            showerror("Error occured while import new deck")
+
     def import_new_deck_dialog(self):
         """Load new deck"""
         json_file = askopenfilename(
@@ -284,7 +317,7 @@ class App(tk.Tk):
             ),
         )
         try:
-            self.data_store.load_flash_cards(json_file)
+            load_from_json_file(json_file, self.data_store)
         except Exception as ex:  # pylint: disable=broad-except
             # anything wrong happen - log it
             logging.error(str(ex))

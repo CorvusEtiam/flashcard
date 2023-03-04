@@ -76,17 +76,18 @@ class Deck:
         )
 
 
-@dataclass
-class Guess:
-    """Type respresent single guess"""
-
-    card: "Card"
-    tries: List[str]
-    status: str
-
 
 class GuessStatus(Enum):
     """Enum for guess status"""
 
     FAILED = 0
     CORRECT = 1
+
+@dataclass
+class Guess:
+    """Type respresent single guess"""
+
+    card: "Card"
+    tries: List[str]
+    status: "GuessStatus"
+

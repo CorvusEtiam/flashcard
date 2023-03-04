@@ -11,7 +11,9 @@ USAGE:
 from argparse import ArgumentParser
 import logging
 import os
+import sys
 
+from flashcards.fileloaders import load_from_json_file, DeckLoadingError
 from flashcards.flashcard import display_deck_info, play
 from flashcards.database import Db
 
@@ -23,8 +25,13 @@ def main(arguments):
 
     if args.deck.endswith(".json"):
         if os.path.exists(args.deck):
-            database_handle.load_flash_cards(args.deck)
-    deck = database_handle.get_deck_from_database(args.deck)
+            try:
+                load_from_json_file(args.deck, database_handle)
+            except DeckLoadingError as err:
+                print(f"[ERR] {err!s}")
+                sys.exit(1) 
+
+        deck = database_handle.get_deck_from_database(args.deck)
     display_deck_info(deck)
 
     play(database_handle, deck, arguments.cards)
