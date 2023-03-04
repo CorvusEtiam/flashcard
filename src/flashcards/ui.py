@@ -4,7 +4,6 @@ GUI entry point
 """
 
 from datetime import datetime
-import enum
 import logging
 import os
 import tkinter as tk
@@ -23,12 +22,14 @@ MAX_TRIES = 5
 MAX_CARDS = 5
 DEFAULT_SAVE_FILE_NAME = "test.db"
 
+
 class NotLoadedError(Exception):
     """Deck not loaded yet"""
 
 
 class DeckNotSelected(Exception):
     """No deck selected"""
+
 
 class StatusBar(tk.Frame):
     """Statusbar widget"""
@@ -108,7 +109,7 @@ class GuessView(tk.Frame):
             return
         self.master.status_bar.max_card_count = len(self.cards)
         self.master.status_bar.update_play_info(1, 1)
-        self.current_guess = Guess(self.cards.pop(), [], GuessStatus.FAILED)
+        self.current_guess = Guess(self.cards.pop(), [], GuessStatus.FAILED, guess_ts=None)
         self.guesses = []
         self.check_btn.configure(text="Check", command=self.check_answer)
         self.card_label.configure(background="cyan")
@@ -127,7 +128,7 @@ class GuessView(tk.Frame):
 
     def update_check_button(self):
         """Update check btn based on how many cards are left"""
-    
+
     def check_answer(self):
         """Check answer command handler"""
         card = self.current_guess.card
@@ -141,7 +142,9 @@ class GuessView(tk.Frame):
             if self.cards:
                 self.check_btn.configure(command=self.load_next_card, text="Next card")
             else:
-                self.check_btn.configure(command=self.show_final_view, text="Show results")
+                self.check_btn.configure(
+                    command=self.show_final_view, text="Show results"
+                )
         else:
             if len(self.current_guess.tries) < MAX_TRIES:
                 self.master.status_bar.update_play_info(
@@ -155,10 +158,14 @@ class GuessView(tk.Frame):
                 self.card_label_txt.set(card.answer)
                 self.card_label.configure(background="red")
                 if self.cards:
-                    self.check_btn.configure(command=self.load_next_card, text="Next card")
+                    self.check_btn.configure(
+                        command=self.load_next_card, text="Next card"
+                    )
                 else:
-                    self.check_btn.configure(command=self.show_final_view, text="Show results")
-            
+                    self.check_btn.configure(
+                        command=self.show_final_view, text="Show results"
+                    )
+
     def load_next_card(self):
         """Loading next card"""
         assert len(self.cards) > 0, "Number of cards remaining is larger then 0"
@@ -180,23 +187,24 @@ class GuessView(tk.Frame):
 
         self.card_label.after(5, blink)
 
+
 class FinalSummaryView(tk.Frame):
     """Tkinter widget with final summary view"""
+
     def __init__(self, master):
         super().__init__(master)
         self.guesses = None
         self._summary_label = tk.Label(self, text="You answered correctly to: ")
-        self._summary_label.grid(row=0, column=0, sticky='w')
+        self._summary_label.grid(row=0, column=0, sticky="w")
         self._correct_label_var = tk.StringVar(self, "")
         self._correct_label = tk.Label(self, textvariable=self._correct_label_var)
-        self._correct_label.grid(row=0, column=1, sticky='e')
-        self._btn = tk.Button(self,
-            text="Next run",
-            command=lambda: print("*** NOT IMPLEMENTED ***")
+        self._correct_label.grid(row=0, column=1, sticky="e")
+        self._btn = tk.Button(
+            self, text="Next run", command=lambda: print("*** NOT IMPLEMENTED ***")
         )
         self._btn.grid(row=3, column=1, sticky="nsew")
 
-    def update_view_state(self, guesses: List['Guess']):
+    def update_view_state(self, guesses: List["Guess"]):
         """Update state of FinalView"""
         self.guesses = guesses
         correct = len([g for g in self.guesses if g.status == GuessStatus.CORRECT])
@@ -239,8 +247,8 @@ class App(tk.Tk):
         # views should only be responsible for displaying stuff and handling user-input
         # all logic should go into main app
         # select deck
-        self.select_deck_cmd()    
-        
+        self.select_deck_cmd()
+
     def select_deck_cmd(self):
         decks = self.data_store.get_all_decks()
         if not decks:
@@ -252,7 +260,7 @@ class App(tk.Tk):
             list_dialog = DeckListDialog(self, decks, on_change=self.prepare_deck)
             list_dialog.wait_window()
 
-    def prepare_deck(self, deck: 'Deck'):
+    def prepare_deck(self, deck: "Deck"):
         """Load new deck"""
         self.deck = deck
         self.status_bar.max_card_count = min(len(self.deck.cards), MAX_CARDS)
@@ -276,7 +284,6 @@ class App(tk.Tk):
         else:
             view.pack_forget()
 
-
     def import_new_anki_deck_dialog(self):
         """Load new ANKI deck"""
         anki_file = askopenfilename(
@@ -287,10 +294,7 @@ class App(tk.Tk):
                     "ANKI Apkg file",
                     "*.apkg*",
                 ),
-                (
-                    "ANKI2 file",
-                    "*.anki2*"
-                ),
+                ("ANKI2 file", "*.anki2*"),
             ),
         )
         try:

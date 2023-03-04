@@ -2,7 +2,6 @@
 Database handler
 """
 
-import json
 import logging
 import os
 import sqlite3
@@ -33,7 +32,7 @@ class Db:
         cursor = self.conn.cursor()
         # check if tables exist
         cursor.executescript(
-        """
+            """
         CREATE TABLE IF NOT EXISTS decks 
         (
             deck_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +43,7 @@ class Db:
         )
         logging.info("Table decks created")
         cursor.executescript(
-        """
+            """
         CREATE TABLE IF not EXISTS cards(
             card_id INTEGER PRIMARY KEY AUTOINCREMENT,
             deck_id INTEGER NOT NULL,
@@ -60,7 +59,7 @@ class Db:
         )
         logging.info("Table cards created")
         cursor.executescript(
-        """
+            """
         CREATE TABLE IF NOT EXISTS progress(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             card_id INTEGER NOT NULL,
@@ -139,13 +138,16 @@ class Db:
 
     def put_guesses_into_database(self, guesses: List[Guess]):
         """Save game progress"""
-        guesses_rows = [ (g.card.card_id, ";".join(g.tries), g.status.value) for g in guesses ]
+        guesses_rows = [
+            (g.card.card_id, ";".join(g.tries), g.status.value) for g in guesses
+        ]
         cursor = self.conn.cursor()
         cursor.executemany(
             """
             INSERT INTO progress(card_id, guess_list, status)
             VALUES (?, ?, ?)
-            """, guesses_rows
+            """,
+            guesses_rows,
         )
         cursor.commit()
 

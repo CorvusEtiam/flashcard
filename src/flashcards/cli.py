@@ -29,7 +29,7 @@ def main(arguments):
                 load_from_json_file(args.deck, database_handle)
             except DeckLoadingError as err:
                 print(f"[ERR] {err!s}")
-                sys.exit(1) 
+                sys.exit(1)
 
         deck = database_handle.get_deck_from_database(args.deck)
     display_deck_info(deck)

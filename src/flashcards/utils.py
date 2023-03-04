@@ -5,6 +5,7 @@ import enum
 import random
 import unicodedata
 
+
 def remove_accents(input_text: str) -> str:
     """Remove accents from unicode string"""
     nkfd_form = unicodedata.normalize("NFKD", input_text)
@@ -84,7 +85,6 @@ def iterative_levenshtein(left_string: str, right_string: str) -> int:
     #        print(dist[r])
 
     return dist[row][col]
-
 
 
 def clone_cards(cards, at_least):

@@ -3,6 +3,7 @@ Basic dataclasses for the project
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import List
 
@@ -76,12 +77,12 @@ class Deck:
         )
 
 
-
 class GuessStatus(Enum):
     """Enum for guess status"""
 
     FAILED = 0
     CORRECT = 1
+
 
 @dataclass
 class Guess:
@@ -90,4 +91,4 @@ class Guess:
     card: "Card"
     tries: List[str]
     status: "GuessStatus"
-
+    guess_ts: "datetime"
