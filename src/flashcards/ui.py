@@ -169,7 +169,7 @@ class GuessView(tk.Frame):
     def load_next_card(self):
         """Loading next card"""
         assert len(self.cards) > 0, "Number of cards remaining is larger then 0"
-        self.current_guess = Guess(self.cards.pop(), [], GuessStatus.FAILED)
+        self.current_guess = Guess(self.cards.pop(), [], GuessStatus.FAILED, None)
         self.current_try = 1
         self.master.status_bar.update_play_info(card=len(self.guesses) + 1, tries=1)
         self.check_btn.configure(text="Check", command=self.check_answer)
